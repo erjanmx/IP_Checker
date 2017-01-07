@@ -7,7 +7,7 @@ from time import sleep
 from parsel import Selector
 from datetime import datetime
 
-_xpath_topics = '//*[@id="ipbcontent"]/div/ol/li/a'
+_xpath_topics = '//*[@id="ipbcontent"]/div/ol/li'
 _xpath_messages = '//*[@id="print"]/div[@class="printpost"]'
 _url_lofi_page = 'http://diesel.elcat.kg/lofiversion/index.php?f{0}-{1}.html'
 _url_print_page = 'http://diesel.elcat.kg/index.php?act=Print&client=printer&f=1&t={0}'
@@ -15,17 +15,22 @@ _url_print_page = 'http://diesel.elcat.kg/index.php?act=Print&client=printer&f=1
 
 def _grab_topics(fid):
     topics = []
+    recomp = re.compile(r'\?t(?P<id>[\d]+).html\'>(?P<title>.*?)</a>', re.DOTALL)
+    ids = []
     for page in range(config.forum_pages_depth):
         print str(fid) + ':' + str(page + 1)
         # lite version topics list contains 150 topics per page
         text = requests.get(_url_lofi_page.format(fid, 150 * page)).text
-        selector = Selector(text=text)
-        t = selector.xpath(_xpath_topics).re(r'\?t([\d]+).html')
-        if not t:
-            break
-        topics.extend(t)
-        sleep(config.delay_between_requests)
-    return set(topics)
+
+        for topic in recomp.finditer(text):
+            id = int(topic.group('id'))
+            if id not in ids:
+                ids.append(id)
+                topics.append({
+                    'id': id,
+                    'title': topic.group('title'),
+                })
+    return topics
 
 
 def _grab_messages(topic):
@@ -56,7 +61,7 @@ def main():
     for fid in db.get_forum_ids():
         topics = _grab_topics(fid)
         for topic in topics:
-            msgs = _grab_messages(topic)
-            db.process_topic(topic, msgs)
+            msgs = _grab_messages(topic['id'])
+            db.process_topic(topic, fid, msgs)
             sleep(config.delay_between_requests)
 
