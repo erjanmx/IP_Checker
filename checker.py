@@ -2,15 +2,17 @@
 import re
 import db
 import config
+import logging
 import requests
 from time import sleep
 from parsel import Selector
 from datetime import datetime
-
 _xpath_topics = '//*[@id="ipbcontent"]/div/ol/li'
 _xpath_messages = '//*[@id="print"]/div[@class="printpost"]'
 _url_lofi_page = 'http://diesel.elcat.kg/lofiversion/index.php?f{0}-{1}.html'
 _url_print_page = 'http://diesel.elcat.kg/index.php?act=Print&client=printer&f=1&t={0}'
+
+logging.basicConfig(filename='ipchecker.log',level=logging.INFO)
 
 
 def _grab_topics(fid):
@@ -18,7 +20,7 @@ def _grab_topics(fid):
     recomp = re.compile(r'\?t(?P<id>[\d]+).html\'>(?P<title>.*?)</a>', re.DOTALL)
     ids = []
     for page in range(config.forum_pages_depth):
-        print str(fid) + ':' + str(page + 1)
+        logging.info(str(fid) + ':' + str(page + 1))
         # lite version topics list contains 150 topics per page
         text = requests.get(_url_lofi_page.format(fid, 150 * page)).text
 
@@ -34,7 +36,7 @@ def _grab_topics(fid):
 
 
 def _grab_messages(topic):
-    print str(topic),
+    logging.info(str(topic))
     text = requests.get(_url_print_page.format(topic)).text
     selector = Selector(text=text)
     recomp = re.compile(r'<b>(?P<author>.*?)</b>\s\s(?P<day>[\d]{1,2}).(?P<month>[\d]{1,2}).(?P<year>[\d]{4}),'
@@ -53,7 +55,7 @@ def _grab_messages(topic):
                 'created_at': str(datetime(int(data.group('year')), int(data.group('month')), int(data.group('day')),
                                            int(data.group('hour')), int(data.group('minute')))),
             })
-    print str(len(msgs)) + ' messages'
+    logging.info(str(len(msgs)) + ' messages')
     return msgs
 
 
